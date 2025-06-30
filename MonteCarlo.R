@@ -134,3 +134,98 @@ MSE.mu.hat.ML
 MSE.sigma.hat.ML
 MSE.mu.hat.MM
 MSE.sigma.hat.MM
+
+
+
+
+
+
+
+import pandas as pd
+
+# ====== PARAMETRY ======
+
+file_path = "twoj_plik.xlsx"
+
+# Grupy walut
+G4 = ["EUR", "USD", "GBP", "JPY"]
+Other_G10 = ["AUD", "CAD", "NZD", "NOK", "SEK", "CHF"]
+Other_non_G10 = ["BRL", "CNY", "DKK", "HKD", "KRW", "MXN", "RUB", "SGD", "TRY", "ZAR"]
+
+# ====== WCZYTYWANIE SHEETÓW ======
+
+df_pln = pd.read_excel(file_path, sheet_name="PLN")
+df_usd = pd.read_excel(file_path, sheet_name="USD")
+df_eur = pd.read_excel(file_path, sheet_name="EUR")
+df_other = pd.read_excel(file_path, sheet_name="Others")
+
+# ====== AGREGOWANIE SUM PO WALUTACH ======
+
+def sum_columns(df, exclude_cols=["others", "residuals"]):
+    cols = [col for col in df.columns if col not in exclude_cols]
+    sums = df[cols].sum()
+    return sums
+
+# Sumy z jawnych kolumn
+sums_pln = sum_columns(df_pln)
+sums_usd = sum_columns(df_usd)
+sums_eur = sum_columns(df_eur)
+
+# Sumy z ostatniego sheeta (rozbite others + residuals)
+sums_other = df_other.sum()
+
+# ====== ŁĄCZENIE SUM PO WALUTACH ======
+
+total_sums = pd.concat([sums_pln, sums_usd, sums_eur, sums_other])
+total_sums = total_sums.groupby(level=0).sum()
+
+# ====== SUMOWANIE PER GRUPA ======
+
+group_sums = {"PLN": 0, "G4": 0, "Other_G10": 0, "Other_non_G10": 0, "Other": 0}
+
+for currency, value in total_sums.items():
+    if currency == "PLN":
+        group_sums["PLN"] += value
+    elif currency in G4:
+        group_sums["G4"] += value
+    elif currency in Other_G10:
+        group_sums["Other_G10"] += value
+    elif currency in Other_non_G10:
+        group_sums["Other_non_G10"] += value
+    else:
+        group_sums["Other"] += value
+
+# ====== TOTAL PLN + TOTAL ALL ======
+
+total_pln = group_sums["PLN"]
+total_all = sum(group_sums.values())
+
+# ====== WYŚWIETLENIE PODSUMOWANIA ======
+
+print("✅ Podsumowanie per grupa:")
+for group, val in group_sums.items():
+    print(f"{group}: {val}")
+
+print(f"\n🔹 TOTAL PLN: {total_pln}")
+print(f"🔹 TOTAL ALL CURRENCIES: {total_all}")
+
+print("\n✅ Podsumowanie per waluta:")
+print(total_sums)
+
+# ====== ZAPIS DO EXCELA ======
+
+summary_df = pd.DataFrame(list(group_sums.items()), columns=["Group", "Total"])
+total_sums_df = total_sums.reset_index()
+total_sums_df.columns = ["Currency", "Total"]
+
+totals_df = pd.DataFrame({
+    "Metric": ["Total PLN", "Total All Currencies"],
+    "Value": [total_pln, total_all]
+})
+
+with pd.ExcelWriter("podsumowanie.xlsx") as writer:
+    summary_df.to_excel(writer, sheet_name="Group_Summary", index=False)
+    total_sums_df.to_excel(writer, sheet_name="Currency_Summary", index=False)
+    totals_df.to_excel(writer, sheet_name="Totals", index=False)
+
+print("\n✅ Plik 'podsumowanie.xlsx' został utworzony!")
