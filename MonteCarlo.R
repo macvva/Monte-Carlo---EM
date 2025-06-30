@@ -229,3 +229,88 @@ with pd.ExcelWriter("podsumowanie.xlsx") as writer:
     totals_df.to_excel(writer, sheet_name="Totals", index=False)
 
 print("\n✅ Plik 'podsumowanie.xlsx' został utworzony!")
+
+
+
+            #############
+
+
+import pandas as pd
+
+# ====== PARAMETRY ======
+
+file_path = "twoj_plik.xlsx"  # lub CSV
+sheet_name = "Sheet1"
+
+# Grupy
+G4 = ["EUR", "USD", "GBP", "JPY"]
+Other_G10 = ["AUD", "CAD", "NZD", "NOK", "SEK", "CHF"]
+Other_non_G10 = ["BRL", "CNY", "DKK", "HKD", "KRW", "MXN", "RUB", "SGD", "TRY", "ZAR"]
+
+# Priority (Twoja wersja, finalna)
+quote_priority = [
+    "EUR", "GBP", "AUD", "NZD", "USD", "CAD", "CHF",
+    "NOK", "SEK", "DKK", "CNY", "HKD", "RUB",
+    "TRY", "MXN", "JPY", "SGD", "ZAR"
+]
+
+def sort_currency_pair(a, b):
+    if quote_priority.index(a) < quote_priority.index(b):
+        return a, b  # a = base, b = quote
+    else:
+        return b, a
+
+# ====== WCZYTANIE ======
+
+df = pd.read_excel(file_path, sheet_name=sheet_name)  # lub read_csv
+
+# ====== INICJALIZACJA ======
+
+group_sums = {"G4": 0, "Other_G10": 0, "Other_non_G10": 0, "Other": 0}
+
+# ====== FUNKCJA GRUPOWANIA ======
+
+def assign_group(c1, c2):
+    if c1 in G4 and c2 in G4:
+        return "G4"
+    elif (c1 in Other_G10 and c2 in Other_G10) or \
+         (c1 in Other_G10 and c2 in G4) or \
+         (c1 in G4 and c2 in Other_G10):
+        return "Other_G10"
+    elif (c1 in Other_non_G10 and c2 in Other_non_G10) or \
+         (c1 in Other_non_G10 and c2 in Other_G10) or \
+         (c1 in Other_non_G10 and c2 in G4) or \
+         (c2 in Other_non_G10 and c1 in Other_G10) or \
+         (c2 in Other_non_G10 and c1 in G4):
+        return "Other_non_G10"
+    else:
+        return "Other"
+
+# ====== PRZETWARZANIE PAR ======
+
+for _, row in df.iterrows():
+    c1 = row['QNC1']
+    c2 = row['QNC2']
+    val = row['Value']
+
+    # Najpierw sortujemy zgodnie z priority, żeby ustalić "bazową" i "kwotowaną"
+    base, quote = sort_currency_pair(c1, c2)
+
+    group = assign_group(base, quote)
+    if group:
+        group_sums[group] += val
+
+# ====== PODSUMOWANIE ======
+
+print("✅ Podsumowanie per grupa (z uwzględnieniem priority):")
+for group, val in group_sums.items():
+    print(f"{group}: {val}")
+
+# ====== ZAPIS DO EXCELA (opcjonalnie) ======
+
+summary_df = pd.DataFrame(list(group_sums.items()), columns=["Group", "Total"])
+
+with pd.ExcelWriter("podsumowanie_qnc.xlsx") as writer:
+    summary_df.to_excel(writer, sheet_name="Group_Summary", index=False)
+
+print("\n✅ Plik 'podsumowanie_qnc.xlsx' został utworzony!")
